@@ -66,6 +66,7 @@ class SelectPoles:
         mifmenu = tk.Menu(menubar, tearoff=0)
         mifmenu.add_command(label='Plot mean abs', command=lambda: self.toggle_mif_frf('abs'))
         mifmenu.add_command(label='Plot all FRFs', command=lambda: self.toggle_mif_frf('all'))
+        mifmenu.add_command(label='Plot CMIF', command=lambda: self.toggle_mif_frf('cmif'))
         menubar.add_cascade(label="FRF Plot Type", menu=mifmenu)
 
         hidepolesmenu = tk.Menu(menubar, tearoff=0)
@@ -83,7 +84,9 @@ class SelectPoles:
         # Program execution
         self.plot_frf(initial=True)
         self.get_stability()
-        self.plot_stability()
+        self.replot()
+        #self.plot_stability()
+
 
         # Integrate matplotlib figure
         canvas = FigureCanvasTkAgg(self.fig, master=self.root)
@@ -122,6 +125,12 @@ class SelectPoles:
                     np.abs(self.Model.frf), axis=0), alpha=0.7, color='k')
         elif self.frf_plot_type == 'all':
             self.ax2.semilogy(self.Model.freq, np.abs(self.Model.frf.T), alpha=0.3, color='k')
+        elif self.frf_plot_type == 'cmif':
+            cmif = np.zeros(self.Model.frf.shape[1])
+            for i in range(self.Model.frf.shape[1]):
+                S = np.linalg.svd(self.Model.frf[:, i].reshape(-1, 1), compute_uv=False)
+                cmif[i] = S @ S.T
+            self.ax2.semilogy(self.Model.freq, cmif, alpha=0.7, color='k')
 
         if not initial and len(self.Model.nat_freq) > 0:
             self.H, self.A = self.Model.get_constants(whose_poles='own', FRF_ind='all', least_squares_type='new')
@@ -130,6 +139,12 @@ class SelectPoles:
                     np.abs(self.H), axis=0), color='r', lw=2)
             elif self.frf_plot_type == 'all':
                 self.ax2.semilogy(self.Model.freq, np.abs(self.H.T), color='r', lw=1)
+            elif self.frf_plot_type == 'cmif':
+                cmif = np.zeros(self.H.shape[1])
+                for i in range(self.H.shape[1]):
+                    S = np.linalg.svd(self.H[:, i].reshape(-1, 1), compute_uv=False)
+                    cmif[i] = S @ S.T
+                self.ax2.semilogy(self.Model.freq, cmif, color='r', lw=2)
         
         else:
             x_position = (self.Model.lower + self.Model.upper) / 2
@@ -385,10 +400,7 @@ class SelectPoles:
         else:
             self.show_legend = 0
 
-        if self.chart_type == 0:
-            self.plot_stability()
-        elif self.chart_type == 1:
-            self.plot_cluster()
+        self.replot()
     
     
     def toggle_hide_poles(self, x):
@@ -397,21 +409,24 @@ class SelectPoles:
         else:
             self.hide_poles = 0
 
-        if self.chart_type == 0:
-            self.plot_stability()
-        elif self.chart_type == 1:
-            self.plot_cluster()
+        self.replot()
 
 
     def toggle_chart_type(self, x):
-        if x == 0:
-            self.chart_type = 0
-            self.plot_stability()
-        elif x == 1:
-            self.chart_type = 1
-            self.plot_cluster()
+        if x == 0 or x == 1:
+            self.chart_type = x
+            self.replot()
+        else:
+            raise ValueError("Chart type must be 0 (stability chart) or 1 (cluster diagram).")
         
-    
+    def replot(self, update_ticks=False):
+        """Replot the chart with the current data."""
+        if self.chart_type == 0:
+            self.plot_stability(update_ticks=update_ticks)
+        elif self.chart_type == 1:
+            self.plot_cluster(update_ticks=update_ticks)
+   
+
     def toggle_mif_frf(self, x):
         self.frf_plot_type = x
         self.plot_frf()
